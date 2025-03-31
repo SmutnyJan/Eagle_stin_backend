@@ -21,25 +21,25 @@ jobs:
 
     - name: Obnovit závislosti
       run: dotnet restore
-      working-directory: Eagle_stin_backend/EagleTest
+      working-directory: Eagle_web_api/EagleTest
 
     - name: Instalovat coverlet.collector
       run: dotnet add package coverlet.collector
-      working-directory: Eagle_stin_backend/EagleTest
+      working-directory: Eagle_web_api/EagleTest
 
     - name: Sestavit
       run: dotnet build --no-restore --configuration Release
-      working-directory: Eagle_stin_backend/EagleTest
+      working-directory: Eagle_web_api/EagleTest
 
     - name: Spustit testy s pokrytím kódu
       run: dotnet test --no-build --configuration Release --collect:"XPlat Code Coverage"
-      working-directory: Eagle_stin_backend/EagleTest
+      working-directory: Eagle_web_api/EagleTest
 
     - name: Nahrát pokrytí na Codecov
       uses: codecov/codecov-action@v2
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: Eagle_stin_backend/EagleTest/TestResults/**/coverage.cobertura.xml
+        files: Eagle_web_api/EagleTest/TestResults/**/coverage.cobertura.xml
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: true
