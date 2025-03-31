@@ -11,6 +11,7 @@ namespace Eagle_web_api.Controllers
     {
         private readonly AppDbContext _context;
         private const string API_KEY = "cvi0sn9r01qks9q7hi0gcvi0sn9r01qks9q7hi10";
+
         public FavoriteTickersController(AppDbContext context)
         {
             _context = context;
