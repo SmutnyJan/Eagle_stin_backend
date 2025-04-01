@@ -66,7 +66,7 @@ namespace Eagle_web_api.Controllers
 
 
         [HttpPost]
-        public async Task<ActionResult<FavoriteTicker>> PostFavoriteTicker(string favoriteTicker)
+        public async Task<ActionResult<FavoriteTicker>> PostFavoriteTicker([FromBody] string favoriteTicker)
         {
             if (string.IsNullOrWhiteSpace(favoriteTicker))
             {
