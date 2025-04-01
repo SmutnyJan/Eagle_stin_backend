@@ -48,11 +48,22 @@ namespace Eagle_web_api.Controllers
                 return NotFound();
             }
 
+            var relatedStockData = await _context.StockDatas
+                .Where(sd => sd.FavoriteTickers_id == id)
+                .ToListAsync();
+
+            if (relatedStockData.Any())
+            {
+                _context.StockDatas.RemoveRange(relatedStockData);
+                await _context.SaveChangesAsync();
+            }
+
             _context.FavoriteTickers.Remove(favoriteTicker);
             await _context.SaveChangesAsync();
 
             return NoContent();
         }
+
 
         [HttpPost]
         public async Task<ActionResult<FavoriteTicker>> PostFavoriteTicker(string favoriteTicker)
