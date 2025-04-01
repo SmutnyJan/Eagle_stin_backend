@@ -9,7 +9,7 @@ namespace Eagle_web_api.Controllers
         private const string predefinedCode = "123";
 
         [HttpPost("Auth")]
-        public IActionResult ValidateCode([FromBody] string code)
+        public IActionResult ValidateCode(string code)
         {
             if (code == predefinedCode)
             {
