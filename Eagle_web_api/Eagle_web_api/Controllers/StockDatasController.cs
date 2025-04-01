@@ -40,36 +40,6 @@ namespace Eagle_web_api.Controllers
 
 
 
-        // POST: api/StockDatas
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost]
-        public async Task<ActionResult<StockData>> PostStockData()
-        {
-            StockData stockData = new StockData
-            {
-                price = 25,
-                date = DateTime.Now,
-                FavoriteTickers_id = 5,
-            };
-            _context.StockDatas.Add(stockData);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetStockData", new { id = stockData.id }, stockData);
-        }
-
-
-        // POST: api/StockDatas
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        /*[HttpPost]
-        public async Task<ActionResult<StockData>> PostStockData(StockData stockData)
-        {
-            _context.StockDatas.Add(stockData);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetStockData", new { id = stockData.id }, stockData);
-        }*/
-
-
         // DELETE: api/StockDatas/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteStockData(int id)
