@@ -60,8 +60,33 @@ namespace Eagle_web_api.Controllers
         [HttpPost("UpdateCurrentPrices")]
         public async Task<IActionResult> UpdateCurrentPrices()
         {
+            const int maxRetries = 10;
+            int retryCount = 0;
+            List<FavoriteTicker> favoriteTickers = null;
+
+            while (retryCount < maxRetries)
+            {
+                try
+                {
+                    favoriteTickers = await _context.FavoriteTickers.ToListAsync();
+
+                    if (favoriteTickers != null && favoriteTickers.Count > 0)
+                        break;
+                }
+                catch (Exception ex)
+                {
+                }
+
+                retryCount++;
+                await Task.Delay(2000);
+            }
+
+            if (favoriteTickers == null || favoriteTickers.Count == 0)
+            {
+                return StatusCode(500, "Database not ready or empty after " + maxRetries + " attempts.");
+            }
+
             var client = new HttpClient();
-            var favoriteTickers = await _context.FavoriteTickers.ToListAsync();
 
             foreach (var ticker in favoriteTickers)
             {
@@ -92,6 +117,7 @@ namespace Eagle_web_api.Controllers
 
             return Ok("Prices updated.");
         }
+
 
     }
 }
