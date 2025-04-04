@@ -10,7 +10,6 @@ namespace Eagle_web_api.Controllers
     public class FavoriteTickersController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private const string API_KEY = "cvi0sn9r01qks9q7hi0gcvi0sn9r01qks9q7hi10";
 
         public FavoriteTickersController(AppDbContext context)
         {
@@ -74,7 +73,7 @@ namespace Eagle_web_api.Controllers
             }
 
             var client = new HttpClient();
-            var url = $"https://finnhub.io/api/v1/stock/profile2?symbol={favoriteTicker}&token=" + API_KEY;
+            var url = $"https://finnhub.io/api/v1/stock/profile2?symbol={favoriteTicker}&token=" + AppDbContext.API_KEY;
 
             var response = await client.GetAsync(url);
             if (!response.IsSuccessStatusCode)
@@ -102,7 +101,8 @@ namespace Eagle_web_api.Controllers
             var newFavorite = new FavoriteTicker
             {
                 ticker = favoriteTicker.ToUpper(),
-                name = profile.Name
+                name = profile.Name,
+                logo = profile.Logo
             };
 
             _context.FavoriteTickers.Add(newFavorite);
@@ -115,6 +115,7 @@ namespace Eagle_web_api.Controllers
         [HttpGet("FilteredPrices")]
         public async Task<ActionResult<IEnumerable<TickerWithPrice>>> GetFilteredPrices([FromQuery] int filterId = 1)
         {
+            
             var tickers = await _context.FavoriteTickers.ToListAsync();
             var result = new List<TickerWithPrice>();
 
@@ -132,6 +133,7 @@ namespace Eagle_web_api.Controllers
                         {
                             Ticker = ft.ticker,
                             Name = ft.name,
+                            Logo = ft.logo,
                             LatestPrice = latestPrice?.price,
                             LatestDate = latestPrice?.date
                         });
@@ -157,9 +159,8 @@ namespace Eagle_web_api.Controllers
                             .ToList();
 
                         if (grouped.Count < 3)
-                            continue; // nemáme dost dat na porovnání
+                            continue;
 
-                        // porovnej: d3 ≤ d2 ≤ d1
                         if (grouped[0].price >= grouped[1].price && grouped[1].price >= grouped[2].price)
                         {
                             // poslední 3 dny cena neklesala
@@ -167,6 +168,7 @@ namespace Eagle_web_api.Controllers
                             {
                                 Ticker = ft.ticker,
                                 Name = ft.name,
+                                Logo = ft.logo,
                                 LatestPrice = grouped[0].price,
                                 LatestDate = grouped[0].date
                             });
@@ -175,7 +177,44 @@ namespace Eagle_web_api.Controllers
                     break;
 
                 case 3:
-                    // TODO: přidáme v dalším kroku – více než 2 poklesy za 5 dní
+                    var now = DateTime.UtcNow;
+                    var fiveDaysAgo = now.Date.AddDays(-5);
+
+                    foreach (var ft in tickers)
+                    {
+                        var prices = await _context.StockDatas
+                            .Where(sd => sd.FavoriteTickers_id == ft.id && sd.date >= fiveDaysAgo)
+                            .ToListAsync();
+
+                        var grouped = prices
+                            .GroupBy(p => p.date.Date)
+                            .Select(g => g.OrderByDescending(p => p.date).First())
+                            .OrderBy(p => p.date)
+                            .ToList();
+
+                        if (grouped.Count < 3)
+                            continue;
+
+                        int declineCount = 0;
+                        for (int i = 1; i < grouped.Count; i++)
+                        {
+                            if (grouped[i].price < grouped[i - 1].price)
+                                declineCount++;
+                        }
+
+                        if (declineCount <= 2)
+                        {
+                            var latest = grouped.Last();
+                            result.Add(new TickerWithPrice
+                            {
+                                Ticker = ft.ticker,
+                                Name = ft.name,
+                                Logo = ft.logo,
+                                LatestPrice = latest.price,
+                                LatestDate = latest.date
+                            });
+                        }
+                    }
                     break;
 
                 default:

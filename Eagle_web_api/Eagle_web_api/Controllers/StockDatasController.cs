@@ -10,7 +10,6 @@ namespace Eagle_web_api.Controllers
     public class StockDatasController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private const string API_KEY = "cvi0sn9r01qks9q7hi0gcvi0sn9r01qks9q7hi10";
 
         public StockDatasController(AppDbContext context)
         {
@@ -90,7 +89,7 @@ namespace Eagle_web_api.Controllers
 
             foreach (var ticker in favoriteTickers)
             {
-                var url = $"https://finnhub.io/api/v1/quote?symbol={ticker.ticker}&token=" + API_KEY;
+                var url = $"https://finnhub.io/api/v1/quote?symbol={ticker.ticker}&token=" + AppDbContext.API_KEY;
                 var response = await client.GetAsync(url);
 
                 if (!response.IsSuccessStatusCode) continue;
