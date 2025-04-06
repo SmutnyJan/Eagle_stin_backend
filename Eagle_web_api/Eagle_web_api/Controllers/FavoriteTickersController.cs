@@ -124,7 +124,7 @@ namespace Eagle_web_api.Controllers
                     StockData newStockData = new()
                     {
                         Price = quote.C,
-                        Date = DateTime.Now,
+                        Date = DateTime.UtcNow,
                         FavoriteTickers_id = newFavorite.Id
                     };
 
