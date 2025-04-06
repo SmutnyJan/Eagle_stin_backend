@@ -27,7 +27,7 @@ namespace Eagle_web_api.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<StockData>> GetStockData(int id)
         {
-            var stockData = await _context.StockDatas.FindAsync(id);
+            StockData? stockData = await _context.StockDatas.FindAsync(id);
 
             if (stockData == null)
             {
@@ -43,7 +43,7 @@ namespace Eagle_web_api.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteStockData(int id)
         {
-            var stockData = await _context.StockDatas.FindAsync(id);
+            StockData? stockData = await _context.StockDatas.FindAsync(id);
             if (stockData == null)
             {
                 return NotFound();
@@ -59,54 +59,31 @@ namespace Eagle_web_api.Controllers
         [HttpPost("UpdateCurrentPrices")]
         public async Task<IActionResult> UpdateCurrentPrices()
         {
-            const int maxRetries = 10;
-            int retryCount = 0;
-            List<FavoriteTicker> favoriteTickers = null;
 
-            while (retryCount < maxRetries)
+            List<FavoriteTicker> favoriteTickers = await _context.FavoriteTickers.ToListAsync();
+
+            HttpClient client = new();
+
+            foreach (FavoriteTicker ticker in favoriteTickers)
             {
-                try
-                {
-                    favoriteTickers = await _context.FavoriteTickers.ToListAsync();
-
-                    if (favoriteTickers != null && favoriteTickers.Count > 0)
-                        break;
-                }
-                catch (Exception ex)
-                {
-                }
-
-                retryCount++;
-                await Task.Delay(2000);
-            }
-
-            if (favoriteTickers == null || favoriteTickers.Count == 0)
-            {
-                return StatusCode(500, "Database not ready or empty after " + maxRetries + " attempts.");
-            }
-
-            var client = new HttpClient();
-
-            foreach (var ticker in favoriteTickers)
-            {
-                var url = $"https://finnhub.io/api/v1/quote?symbol={ticker.ticker}&token=" + AppDbContext.API_KEY;
-                var response = await client.GetAsync(url);
+                string url = $"https://finnhub.io/api/v1/quote?symbol={ticker.Ticker}&token=" + AppDbContext.API_KEY;
+                HttpResponseMessage response = await client.GetAsync(url);
 
                 if (!response.IsSuccessStatusCode) continue;
 
-                var json = await response.Content.ReadAsStringAsync();
-                var quote = JsonSerializer.Deserialize<QuoteResponse>(json, new JsonSerializerOptions
+                string json = await response.Content.ReadAsStringAsync();
+                QuoteResponse? quote = JsonSerializer.Deserialize<QuoteResponse>(json, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
                 });
 
-                if (quote == null || quote.c == 0) continue;
+                if (quote == null || quote.C == 0) continue;
 
-                var newStockData = new StockData
+                StockData newStockData = new()
                 {
-                    price = quote.c,
-                    date = DateTime.Now,
-                    FavoriteTickers_id = ticker.id
+                    Price = quote.C,
+                    Date = DateTime.Now,
+                    FavoriteTickers_id = ticker.Id
                 };
 
                 _context.StockDatas.Add(newStockData);
@@ -116,7 +93,5 @@ namespace Eagle_web_api.Controllers
 
             return Ok("Prices updated.");
         }
-
-
     }
 }

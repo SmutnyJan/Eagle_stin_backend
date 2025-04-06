@@ -27,7 +27,7 @@ namespace Eagle_web_api.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<FavoriteTicker>> GetFavoriteTicker(int id)
         {
-            var favoriteTicker = await _context.FavoriteTickers.FindAsync(id);
+            FavoriteTicker? favoriteTicker = await _context.FavoriteTickers.FindAsync(id);
 
             if (favoriteTicker == null)
             {
@@ -41,13 +41,13 @@ namespace Eagle_web_api.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteFavoriteTicker(int id)
         {
-            var favoriteTicker = await _context.FavoriteTickers.FindAsync(id);
+            FavoriteTicker? favoriteTicker = await _context.FavoriteTickers.FindAsync(id);
             if (favoriteTicker == null)
             {
                 return NotFound();
             }
 
-            var relatedStockData = await _context.StockDatas
+            List<StockData> relatedStockData = await _context.StockDatas
                 .Where(sd => sd.FavoriteTickers_id == id)
                 .ToListAsync();
 
@@ -72,17 +72,17 @@ namespace Eagle_web_api.Controllers
                 return BadRequest("Ticker is empty.");
             }
 
-            var client = new HttpClient();
-            var url = $"https://finnhub.io/api/v1/stock/profile2?symbol={favoriteTicker}&token=" + AppDbContext.API_KEY;
+            HttpClient client = new();
+            string profileUrl = $"https://finnhub.io/api/v1/stock/profile2?symbol={favoriteTicker}&token=" + AppDbContext.API_KEY;
 
-            var response = await client.GetAsync(url);
-            if (!response.IsSuccessStatusCode)
+            HttpResponseMessage profileResponse = await client.GetAsync(profileUrl);
+            if (!profileResponse.IsSuccessStatusCode)
             {
-                return StatusCode((int)response.StatusCode, "Error communicating with Finnhub API.");
+                return StatusCode((int)profileResponse.StatusCode, "Error communicating with Finnhub API.");
             }
 
-            var json = await response.Content.ReadAsStringAsync();
-            var profile = JsonSerializer.Deserialize<ProfileResponse>(json, new JsonSerializerOptions
+            string profileJson = await profileResponse.Content.ReadAsStringAsync();
+            ProfileResponse? profile = JsonSerializer.Deserialize<ProfileResponse>(profileJson, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
@@ -92,104 +92,130 @@ namespace Eagle_web_api.Controllers
                 return BadRequest("Ticker " + favoriteTicker + " not found.");
             }
 
-            var exists = await _context.FavoriteTickers.AnyAsync(x => x.ticker == favoriteTicker.ToUpper());
+            bool exists = await _context.FavoriteTickers.AnyAsync(x => x.Ticker == favoriteTicker.ToUpper());
             if (exists)
             {
                 return Conflict("Ticker is already in favorites.");
             }
 
-            var newFavorite = new FavoriteTicker
+            FavoriteTicker newFavorite = new()
             {
-                ticker = favoriteTicker.ToUpper(),
-                name = profile.Name,
-                logo = profile.Logo
+                Ticker = favoriteTicker.ToUpper(),
+                Name = profile.Name,
+                Logo = profile.Logo
             };
 
             _context.FavoriteTickers.Add(newFavorite);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetFavoriteTicker", new { id = newFavorite.id }, newFavorite);
+            string quoteUrl = $"https://finnhub.io/api/v1/quote?symbol={newFavorite.Ticker}&token=" + AppDbContext.API_KEY;
+            HttpResponseMessage quoteResponse = await client.GetAsync(quoteUrl);
+
+            if (quoteResponse.IsSuccessStatusCode)
+            {
+                string quoteJson = await quoteResponse.Content.ReadAsStringAsync();
+                QuoteResponse? quote = JsonSerializer.Deserialize<QuoteResponse>(quoteJson, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (quote != null && quote.C != 0)
+                {
+                    StockData newStockData = new()
+                    {
+                        Price = quote.C,
+                        Date = DateTime.Now,
+                        FavoriteTickers_id = newFavorite.Id
+                    };
+
+                    _context.StockDatas.Add(newStockData);
+                    await _context.SaveChangesAsync();
+                }
+            }
+
+            return CreatedAtAction("GetFavoriteTicker", new { id = newFavorite.Id }, newFavorite);
         }
 
 
         [HttpGet("FilteredPrices")]
         public async Task<ActionResult<IEnumerable<TickerWithPrice>>> GetFilteredPrices([FromQuery] int filterId = 1)
         {
-            
-            var tickers = await _context.FavoriteTickers.ToListAsync();
-            var result = new List<TickerWithPrice>();
+
+            List<FavoriteTicker> tickers = await _context.FavoriteTickers.ToListAsync();
+            List<TickerWithPrice> result = new();
+            Console.WriteLine("Filter ID: " + filterId);
 
             switch (filterId)
             {
                 case 1:
-                    foreach (var ft in tickers)
+                    foreach (FavoriteTicker? ft in tickers)
                     {
-                        var latestPrice = await _context.StockDatas
-                            .Where(sd => sd.FavoriteTickers_id == ft.id)
-                            .OrderByDescending(sd => sd.date)
+                        StockData? latestPrice = await _context.StockDatas
+                            .Where(sd => sd.FavoriteTickers_id == ft.Id)
+                            .OrderByDescending(sd => sd.Date)
                             .FirstOrDefaultAsync();
 
                         result.Add(new TickerWithPrice
                         {
-                            Ticker = ft.ticker,
-                            Name = ft.name,
-                            Logo = ft.logo,
-                            LatestPrice = latestPrice?.price,
-                            LatestDate = latestPrice?.date
+                            Ticker = ft.Ticker,
+                            Name = ft.Name,
+                            Logo = ft.Logo,
+                            LatestPrice = latestPrice?.Price,
+                            LatestDate = latestPrice?.Date
                         });
                     }
                     break;
 
                 case 2:
-                    var today = DateTime.UtcNow.Date;
-                    var threeDaysAgo = today.AddDays(-3);
+                    DateTime today = DateTime.UtcNow.Date;
+                    DateTime threeDaysAgo = today.AddDays(-3);
 
-                    foreach (var ft in tickers)
+                    foreach (FavoriteTicker? ft in tickers)
                     {
-                        var prices = await _context.StockDatas
-                            .Where(sd => sd.FavoriteTickers_id == ft.id && sd.date >= threeDaysAgo)
+                        List<StockData> prices = await _context.StockDatas
+                            .Where(sd => sd.FavoriteTickers_id == ft.Id && sd.Date >= threeDaysAgo)
                             .ToListAsync();
 
                         // seskup podle dne a vezmi vždy nejpozdější záznam pro ten den
-                        var grouped = prices
-                            .GroupBy(p => p.date.Date)
-                            .Select(g => g.OrderByDescending(p => p.date).First())
-                            .OrderByDescending(p => p.date)
+                        List<StockData> grouped = prices
+                            .GroupBy(p => p.Date.Date)
+                            .Select(g => g.OrderByDescending(p => p.Date).First())
+                            .OrderByDescending(p => p.Date)
                             .Take(3)
                             .ToList();
 
                         if (grouped.Count < 3)
                             continue;
 
-                        if (grouped[0].price >= grouped[1].price && grouped[1].price >= grouped[2].price)
+                        if (grouped[0].Price >= grouped[1].Price && grouped[1].Price >= grouped[2].Price)
                         {
                             // poslední 3 dny cena neklesala
                             result.Add(new TickerWithPrice
                             {
-                                Ticker = ft.ticker,
-                                Name = ft.name,
-                                Logo = ft.logo,
-                                LatestPrice = grouped[0].price,
-                                LatestDate = grouped[0].date
+                                Ticker = ft.Ticker,
+                                Name = ft.Name,
+                                Logo = ft.Logo,
+                                LatestPrice = grouped[0].Price,
+                                LatestDate = grouped[0].Date
                             });
                         }
                     }
                     break;
 
                 case 3:
-                    var now = DateTime.UtcNow;
-                    var fiveDaysAgo = now.Date.AddDays(-5);
+                    DateTime now = DateTime.UtcNow;
+                    DateTime fiveDaysAgo = now.Date.AddDays(-5);
 
-                    foreach (var ft in tickers)
+                    foreach (FavoriteTicker? ft in tickers)
                     {
-                        var prices = await _context.StockDatas
-                            .Where(sd => sd.FavoriteTickers_id == ft.id && sd.date >= fiveDaysAgo)
+                        List<StockData> prices = await _context.StockDatas
+                            .Where(sd => sd.FavoriteTickers_id == ft.Id && sd.Date >= fiveDaysAgo)
                             .ToListAsync();
 
-                        var grouped = prices
-                            .GroupBy(p => p.date.Date)
-                            .Select(g => g.OrderByDescending(p => p.date).First())
-                            .OrderBy(p => p.date)
+                        List<StockData> grouped = prices
+                            .GroupBy(p => p.Date.Date)
+                            .Select(g => g.OrderByDescending(p => p.Date).First())
+                            .OrderBy(p => p.Date)
                             .ToList();
 
                         if (grouped.Count < 3)
@@ -198,20 +224,20 @@ namespace Eagle_web_api.Controllers
                         int declineCount = 0;
                         for (int i = 1; i < grouped.Count; i++)
                         {
-                            if (grouped[i].price < grouped[i - 1].price)
+                            if (grouped[i].Price < grouped[i - 1].Price)
                                 declineCount++;
                         }
 
                         if (declineCount <= 2)
                         {
-                            var latest = grouped.Last();
+                            StockData latest = grouped.Last();
                             result.Add(new TickerWithPrice
                             {
-                                Ticker = ft.ticker,
-                                Name = ft.name,
-                                Logo = ft.logo,
-                                LatestPrice = latest.price,
-                                LatestDate = latest.date
+                                Ticker = ft.Ticker,
+                                Name = ft.Name,
+                                Logo = ft.Logo,
+                                LatestPrice = latest.Price,
+                                LatestDate = latest.Date
                             });
                         }
                     }
@@ -222,6 +248,87 @@ namespace Eagle_web_api.Controllers
             }
 
             return Ok(result);
+        }
+
+
+        [HttpPost("Rating")]
+        public async Task<ActionResult<List<TickerRating>>> GetRatings([FromBody] List<string> tickers)
+        {
+            /*if (tickers == null || !tickers.Any())
+                return BadRequest("Ticker seznam je prázdný.");
+
+            var requestBody = new { tickers = tickers };
+
+            using HttpClient client = new();
+
+            string requestUrl = "http://localhost:5000/evaluateStocks"; // změň na produkční adresu podle potřeby
+
+            StringContent content = new(
+                JsonSerializer.Serialize(requestBody),
+                System.Text.Encoding.UTF8,
+                "application/json"
+            );
+
+            HttpResponseMessage response = await client.PostAsync(requestUrl, content);
+
+            if (!response.IsSuccessStatusCode)
+                return StatusCode((int)response.StatusCode, "Chyba při komunikaci s hodnotícím API.");
+
+            string json = await response.Content.ReadAsStringAsync();
+
+
+            JsonSerializerOptions options = new() { PropertyNameCaseInsensitive = true };
+
+            Wrapper? parsed = JsonSerializer.Deserialize<Wrapper>(json, options);
+
+            if (parsed?.Stocks == null)
+                return StatusCode(500, "Chybná odpověď z API.");
+
+
+            List<TickerRating> result = parsed.Stocks.Select(s => new TickerRating
+            {
+                Ticker = s.Symbol,
+                Rating = int.TryParse(s.Rating, out int r) ? r : 0
+            }).ToList();
+
+            return Ok(result);*/
+
+            Random random = new();
+
+            IQueryable<FavoriteTicker> favoriteTickers = _context.FavoriteTickers.Where(x => tickers.Contains(x.Ticker));
+
+            List<TickerRating> tickerRatings = favoriteTickers.Select(x => new TickerRating
+            {
+
+                Ticker = x.Ticker,
+                Name = x.Name,
+                Logo = x.Logo,
+                Rating = random.Next(-10, 11)
+            }).ToList();
+
+            return Ok(tickerRatings);
+        }
+
+
+        [HttpPost("ProcessTickers")]
+        public async Task<ActionResult<List<ProfileResponse>>> ProcessTickers([FromBody] List<TickerRating> tickers, [FromQuery] int tickerLimit)
+        {
+            if (tickers == null || !tickers.Any())
+                return BadRequest("Seznam tickerů je prázdný.");
+
+            List<ProfileResponse> filteredProfiles = tickers
+                .Where(t => t.Rating > tickerLimit)
+                .Select(t => new ProfileResponse
+                {
+                    Ticker = t.Ticker,
+                    Name = t.Name,
+                    Logo = t.Logo
+                })
+                .ToList();
+
+            // volat api od Matěje
+
+            return Ok(filteredProfiles);
         }
     }
 }

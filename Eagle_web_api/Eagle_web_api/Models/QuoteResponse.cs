@@ -2,7 +2,7 @@
 {
     public class QuoteResponse
     {
-        public decimal c { get; set; }
+        public decimal C { get; set; }
 
     }
 }
