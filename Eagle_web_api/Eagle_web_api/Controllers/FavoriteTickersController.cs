@@ -1,4 +1,5 @@
 ﻿using Eagle_web_api.Models;
+using Eagle_web_api.Models.Tables;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -252,7 +253,7 @@ namespace Eagle_web_api.Controllers
 
 
         [HttpPost("Rating")]
-        public async Task<ActionResult<List<TickerRating>>> GetRatings([FromBody] List<string> tickers)
+        public async Task<ActionResult<List<TickerWithRating>>> GetRatings([FromBody] List<string> tickers)
         {
             /*if (tickers == null || !tickers.Any())
                 return BadRequest("Ticker seznam je prázdný.");
@@ -297,7 +298,7 @@ namespace Eagle_web_api.Controllers
 
             IQueryable<FavoriteTicker> favoriteTickers = _context.FavoriteTickers.Where(x => tickers.Contains(x.Ticker));
 
-            List<TickerRating> tickerRatings = favoriteTickers.Select(x => new TickerRating
+            List<TickerWithRating> tickerRatings = favoriteTickers.Select(x => new TickerWithRating
             {
 
                 Ticker = x.Ticker,
@@ -311,18 +312,18 @@ namespace Eagle_web_api.Controllers
 
 
         [HttpPost("ProcessTickers")]
-        public async Task<ActionResult<List<ProfileResponse>>> ProcessTickers([FromBody] List<TickerRating> tickers, [FromQuery] int tickerLimit)
+        public async Task<ActionResult<List<TickerWithRecommendation>>> ProcessTickers([FromBody] List<TickerWithRating> tickers, [FromQuery] int tickerLimit)
         {
             if (tickers == null || !tickers.Any())
                 return BadRequest("Seznam tickerů je prázdný.");
 
-            List<ProfileResponse> filteredProfiles = tickers
-                .Where(t => t.Rating > tickerLimit)
-                .Select(t => new ProfileResponse
+            List<TickerWithRecommendation> filteredProfiles = tickers
+                .Select(t => new TickerWithRecommendation
                 {
                     Ticker = t.Ticker,
                     Name = t.Name,
-                    Logo = t.Logo
+                    Logo = t.Logo,
+                    Recommendation = t.Rating >= tickerLimit ? Recommendation.Sell : Recommendation.Buy,
                 })
                 .ToList();
 

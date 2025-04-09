@@ -1,11 +1,11 @@
-﻿namespace Eagle_web_api.Models
+﻿namespace Eagle_web_api.Models.Tables
 {
     public class StockData
     {
-        public Int32 Id { get; set; }
+        public int Id { get; set; }
 
         public decimal Price { get; set; }
         public DateTime Date { get; set; }
-        public Int32 FavoriteTickers_id { get; set; }
+        public int FavoriteTickers_id { get; set; }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Eagle_web_api.Models;
+using Eagle_web_api.Models.Tables;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;

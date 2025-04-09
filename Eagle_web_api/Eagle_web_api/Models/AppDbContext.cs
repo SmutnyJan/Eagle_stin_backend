@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Eagle_web_api.Models.Tables;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 
 namespace Eagle_web_api.Models
